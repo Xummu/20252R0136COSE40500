@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>公路英雄 - 网页版</title>
+    <style>
+        body { margin: 0; background: #333; display: flex; justify-content: center; align-items: center; height: 100vh; color: white; font-family: 'Arial Black', sans-serif; overflow: hidden; }
+        canvas { background: #555; border: 10px solid #222; box-shadow: 0 0 50px rgba(0,0,0,0.5); }
+        #hud { position: absolute; top: 10%; left: 50%; transform: translateX(-50%); text-align: center; pointer-events: none; width: 300px; }
+        .meter { font-size: 20px; margin-bottom: 5px; text-shadow: 2px 2px #000; }
+    </style>
+</head>
+<body>
+    <div id="hud">
+        <div class="meter">速度: <span id="speedVal">0</span> km/h</div>
+        <div class="meter">燃油: <span id="fuelVal">100</span>%</div>
+    </div>
+    <canvas id="game"></canvas>
+
+<script>
+    const canvas = document.getElementById('game');
+    const ctx = canvas.getContext('2d');
+    const speedEl = document.getElementById('speedVal');
+    const fuelEl = document.getElementById('fuelVal');
+
+    canvas.width = 320;
+    canvas.height = 480;
+
+    // 游戏配置
+    let gameState = 'playing';
+    let roadOffset = 0;
+    let speed = 0;
+    let maxSpeed = 15;
+    let fuel = 100;
+    let score = 0;
+
+    // 赛车对象
+    const car = { x: 145, y: 380, w: 30, h: 50, color: '#ff0000' };
+
+    // 其他车辆
+    let enemies = [];
+    const keys = {};
+
+    window.addEventListener('keydown', e => keys[e.code] = true);
+    window.addEventListener('keyup', e => keys[e.code] = false);
+
+    function spawnEnemy() {
+        if (Math.random() < 0.02) {
+            const lane = [70, 120, 170, 220][Math.floor(Math.random() * 4)];
+            enemies.push({ x: lane, y: -60, w: 30, h: 50, color: '#00ccff', speed: 2 + Math.random() * 3 });
+        }
+    }
+
+    function update() {
+        if (gameState !== 'playing') return;
+
+        // 加速与减速逻辑
+        if (keys['ArrowUp']) {
+            speed = Math.min(speed + 0.1, maxSpeed);
+            fuel -= 0.05; // 只有行驶时才耗油
+        } else {
+            speed = Math.max(speed - 0.2, 0);
+        }
+
+        if (keys['ArrowLeft'] && car.x > 60) car.x -= 4;
+        if (keys['ArrowRight'] && car.x < 230) car.x += 4;
+
+        // 道路滚动
+        roadOffset = (roadOffset + speed) % 40;
+
+        // 敌车逻辑
+        enemies.forEach((en, index) => {
+            en.y += speed - en.speed; // 相对速度
+
+            // 碰撞检测
+            if (car.x < en.x + en.w && car.x + car.w > en.x &&
+                car.y < en.y + en.h && car.y + car.h > en.y) {
+                speed = 0;
+                fuel -= 10;
+                enemies.splice(index, 1);
+            }
+
+            if (en.y > canvas.height) enemies.splice(index, 1);
+        });
+
+        spawnEnemy();
+        speedEl.innerText = Math.floor(speed * 10);
+        fuelEl.innerText = Math.max(0, Math.floor(fuel));
+
+        if (fuel <= 0) {
+            gameState = 'gameover';
+            alert("燃油耗尽！游戏结束。");
+            location.reload();
+        }
+    }
+
+    function draw() {
+        // 1. 绘制道路 (草地与路面)
+        ctx.fillStyle = '#228B22'; // 草地
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        
+        ctx.fillStyle = '#555'; // 公路
+        ctx.fillRect(50, 0, 220, canvas.height);
+
+        // 2. 绘制路肩 (红白相间)
+        ctx.fillStyle = (roadOffset % 40 < 20) ? '#fff' : '#f00';
+        ctx.fillRect(50, 0, 10, canvas.height);
+        ctx.fillRect(260, 0, 10, canvas.height);
+
+        // 3. 绘制车道线
+        ctx.strokeStyle = '#fff';
+        ctx.setLineDash([20, 20]);
+        ctx.lineDashOffset = -roadOffset;
+        ctx.lineWidth = 2;
+        [105, 160, 215].forEach(x => {
+            ctx.beginPath();
+            ctx.moveTo(x, 0);
+            ctx.lineTo(x, canvas.height);
+            ctx.stroke();
+        });
+
+        // 4. 绘制敌方车辆
+        enemies.forEach(en => {
+            ctx.fillStyle = en.color;
+            ctx.fillRect(en.x, en.y, en.w, en.h);
+            // 车灯
+            ctx.fillStyle = '#fff';
+            ctx.fillRect(en.x + 5, en.y + 40, 5, 5);
+            ctx.fillRect(en.x + 20, en.y + 40, 5, 5);
+        });
+
+        // 5. 绘制我的赛车
+        ctx.fillStyle = car.color;
+        ctx.fillRect(car.x, car.y, car.w, car.h);
+        // 赛车细节 (尾翼)
+        ctx.fillStyle = '#000';
+        ctx.fillRect(car.x - 5, car.y + 35, 40, 10);
+
+        if (gameState === 'playing') requestAnimationFrame(() => {
+            update();
+            draw();
+        });
+    }
+
+    draw();
+</script>
+</body>
+</html>
