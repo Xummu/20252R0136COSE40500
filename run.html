@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>神庙逃亡 - 伪3D版</title>
+    <style>
+        body { margin: 0; background: #222; overflow: hidden; display: flex; justify-content: center; align-items: center; height: 100vh; font-family: 'Arial'; }
+        canvas { background: #453020; border: 4px solid #5d4037; }
+        #ui { position: absolute; top: 20px; color: white; font-size: 24px; text-shadow: 2px 2px 0 #000; pointer-events: none; }
+    </style>
+</head>
+<body>
+    <div id="ui">得分: <span id="score">0</span></div>
+    <canvas id="gameCanvas"></canvas>
+
+<script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const scoreEl = document.getElementById('score');
+
+    canvas.width = 400;
+    canvas.height = 600;
+
+    let score = 0;
+    let gameSpeed = 0.03;
+    let isGameOver = false;
+
+    // 玩家状态
+    const player = { lane: 1, y: 0, targetX: 200, currentX: 200 };
+    const lanes = [100, 200, 300]; // 左、中、右三条道
+
+    // 障碍物池
+    let obstacles = [];
+
+    // 监听键盘
+    window.addEventListener('keydown', e => {
+        if (e.code === 'ArrowLeft' && player.lane > 0) player.lane--;
+        if (e.code === 'ArrowRight' && player.lane < 2) player.lane++;
+        player.targetX = lanes[player.lane];
+    });
+
+    function spawnObstacle() {
+        if (Math.random() < 0.05) {
+            obstacles.push({
+                lane: Math.floor(Math.random() * 3),
+                z: 1, // z轴深度，1表示在最远处，0表示到达玩家位置
+                w: 20,
+                h: 20
+            });
+        }
+    }
+
+    function update() {
+        if (isGameOver) return;
+
+        score++;
+        scoreEl.innerText = Math.floor(score / 10);
+        
+        // 玩家平滑移动
+        player.currentX += (player.targetX - player.currentX) * 0.2;
+
+        // 更新障碍物
+        for (let i = obstacles.length - 1; i >= 0; i--) {
+            let o = obstacles[i];
+            o.z -= gameSpeed; // 障碍物向玩家靠近
+
+            // 碰撞检测：当障碍物到达底部 (z 接近 0)
+            if (o.z < 0.15 && o.z > 0.05) {
+                if (o.lane === player.lane) {
+                    isGameOver = true;
+                    alert("撞到障碍物了！最终得分: " + Math.floor(score/10));
+                    location.reload();
+                }
+            }
+
+            if (o.z < 0) obstacles.splice(i, 1);
+        }
+
+        spawnObstacle();
+        gameSpeed += 0.00001; // 逐渐加速
+    }
+
+    function draw() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        // 1. 绘制消失点路面 (透视效果)
+        ctx.fillStyle = '#6d4c41';
+        ctx.beginPath();
+        ctx.moveTo(150, 200); // 远处消失点
+        ctx.lineTo(250, 200);
+        ctx.lineTo(400, 600); // 近处路基
+        ctx.lineTo(0, 600);
+        ctx.fill();
+
+        // 2. 绘制车道线
+        ctx.strokeStyle = '#8d6e63';
+        ctx.lineWidth = 2;
+        [1, 2].forEach(i => {
+            ctx.beginPath();
+            ctx.moveTo(150 + i * 33, 200);
+            ctx.lineTo(i * 133, 600);
+            ctx.stroke();
+        });
+
+        // 3. 绘制障碍物 (基于Z轴缩放)
+        obstacles.forEach(o => {
+            // 计算投影坐标
+            let perspective = 1 / o.z;
+            let screenX = 200 + (lanes[o.lane] - 200) * (perspective * 0.1);
+            let screenY = 200 + (400 * (perspective * 0.05));
+            let size = 100 * (perspective * 0.05);
+
+            if(o.z > 0.1) { // 只绘制在视野内的
+                ctx.fillStyle = '#ff5722';
+                ctx.fillRect(screenX - size/2, screenY - size, size, size);
+                // 阴影
+                ctx.fillStyle = 'rgba(0,0,0,0.2)';
+                ctx.fillRect(screenX - size/2, screenY - 5, size, 5);
+            }
+        });
+
+        // 4. 绘制玩家 (近处固定大小)
+        ctx.fillStyle = '#4fc3f7';
+        ctx.beginPath();
+        ctx.arc(player.currentX, 550, 20, 0, Math.PI * 2);
+        ctx.fill();
+
+        if (!isGameOver) requestAnimationFrame(() => {
+            update();
+            draw();
+        });
+    }
+
+    draw();
+</script>
+</body>
+</html>
