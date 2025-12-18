@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>火柴人对打</title>
+    <style>
+        body { margin: 0; background: #333; display: flex; flex-direction: column; justify-content: center; align-items: center; height: 100vh; color: white; font-family: Arial; }
+        canvas { background: #eee; border: 5px solid #000; }
+        .controls { margin-top: 10px; font-size: 14px; color: #ccc; }
+    </style>
+</head>
+<body>
+    <div id="status">P1: 100 | P2: 100</div>
+    <canvas id="game"></canvas>
+    <div class="controls">
+        P1: A/D 移动, W 跳跃, F 攻击 | P2: 方向键 移动, ↑ 跳跃, L 攻击
+    </div>
+
+<script>
+    const canvas = document.getElementById('game');
+    const ctx = canvas.getContext('2d');
+    canvas.width = 800;
+    canvas.height = 300;
+
+    const gravity = 0.8;
+
+    class Stickman {
+        constructor(x, color, controls, side) {
+            this.x = x;
+            this.y = 200;
+            this.color = color;
+            this.controls = controls;
+            this.side = side; // 1 为面向右, -1 为面向左
+            this.hp = 100;
+            this.vx = 0;
+            this.vy = 0;
+            this.isJumping = false;
+            this.isAttacking = false;
+            this.attackFrame = 0;
+        }
+
+        draw() {
+            ctx.strokeStyle = this.color;
+            ctx.lineWidth = 4;
+            ctx.lineCap = 'round';
+
+            const headRadius = 10;
+            const bodyLen = 40;
+            
+            // 计算动作偏移
+            let armOffset = 0;
+            let legOffset = Math.sin(Date.now() / 100) * 10;
+            if (this.isAttacking) {
+                armOffset = 25 * this.side;
+                this.attackFrame++;
+                if (this.attackFrame > 10) {
+                    this.isAttacking = false;
+                    this.attackFrame = 0;
+                }
+            }
+
+            // 1. 头
+            ctx.beginPath();
+            ctx.arc(this.x, this.y - bodyLen - headRadius, headRadius, 0, Math.PI * 2);
+            ctx.stroke();
+
+            // 2. 身体
+            ctx.beginPath();
+            ctx.moveTo(this.x, this.y - bodyLen);
+            ctx.lineTo(this.x, this.y);
+            ctx.stroke();
+
+            // 3. 手 (根据攻击动作变化)
+            ctx.beginPath();
+            ctx.moveTo(this.x, this.y - bodyLen + 10);
+            ctx.lineTo(this.x + (this.isAttacking ? armOffset : -10 * this.side), this.y - 20);
+            ctx.stroke();
+
+            // 4. 腿
+            ctx.beginPath();
+            ctx.moveTo(this.x, this.y);
+            ctx.lineTo(this.x - 10 + (this.vx !== 0 ? legOffset : 0), this.y + 20);
+            ctx.moveTo(this.x, this.y);
+            ctx.lineTo(this.x + 10 - (this.vx !== 0 ? legOffset : 0), this.y + 20);
+            ctx.stroke();
+        }
+
+        update(opponent) {
+            // 物理移动
+            this.x += this.vx;
+            this.y += this.vy;
+
+            if (this.y < 250) {
+                this.vy += gravity;
+            } else {
+                this.y = 250;
+                this.vy = 0;
+                this.isJumping = false;
+            }
+
+            // 边界检查
+            this.x = Math.max(20, Math.min(canvas.width - 20, this.x));
+
+            // 攻击判定
+            if (this.isAttacking && this.attackFrame === 1) {
+                const dist = Math.abs(this.x + (20 * this.side) - opponent.x);
+                if (dist < 30 && Math.abs(this.y - opponent.y) < 50) {
+                    opponent.hp -= 10;
+                    opponent.vx = 10 * this.side; // 击退效果
+                }
+            }
+
+            // 击退衰减
+            this.vx *= 0.9;
+        }
+    }
+
+    const p1 = new Stickman(200, 'blue', { left: 'KeyA', right: 'KeyD', jump: 'KeyW', hit: 'KeyF' }, 1);
+    const p2 = new Stickman(600, 'red', { left: 'ArrowLeft', right: 'ArrowRight', jump: 'ArrowUp', hit: 'KeyL' }, -1);
+
+    const keys = {};
+    window.addEventListener('keydown', e => keys[e.code] = true);
+    window.addEventListener('keyup', e => keys[e.code] = false);
+
+    function loop() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        // P1 控制
+        if (keys[p1.controls.left]) { p1.vx = -4; p1.side = -1; }
+        if (keys[p1.controls.right]) { p1.vx = 4; p1.side = 1; }
+        if (keys[p1.controls.jump] && !p1.isJumping) { p1.vy = -15; p1.isJumping = true; }
+        if (keys[p1.controls.hit]) p1.isAttacking = true;
+
+        // P2 控制
+        if (keys[p2.controls.left]) { p2.vx = -4; p2.side = -1; }
+        if (keys[p2.controls.right]) { p2.vx = 4; p2.side = 1; }
+        if (keys[p2.controls.jump] && !p2.isJumping) { p2.vy = -15; p2.isJumping = true; }
+        if (keys[p2.controls.hit]) p2.isAttacking = true;
+
+        p1.update(p2);
+        p2.update(p1);
+
+        p1.draw();
+        p2.draw();
+
+        document.getElementById('status').innerText = `P1 HP: ${p1.hp} | P2 HP: ${p2.hp}`;
+
+        if (p1.hp <= 0 || p2.hp <= 0) {
+            alert(p1.hp <= 0 ? "红方胜利！" : "蓝方胜利！");
+            location.reload();
+        } else {
+            requestAnimationFrame(loop);
+        }
+    }
+
+    loop();
+</script>
+</body>
+</html>
