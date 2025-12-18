@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>随机迷宫逃生</title>
+    <style>
+        body { margin: 0; background: #2c3e50; display: flex; flex-direction: column; justify-content: center; align-items: center; height: 100vh; color: white; font-family: '微軟正黑體', sans-serif; }
+        canvas { background: #ecf0f1; border: 5px solid #34495e; box-shadow: 0 0 20px rgba(0,0,0,0.5); }
+        .info { margin-bottom: 10px; text-align: center; }
+        .win-msg { color: #2ecc71; font-weight: bold; display: none; }
+    </style>
+</head>
+<body>
+    <div class="info">
+        <h2>迷宫逃脱</h2>
+        <p>使用 <b>方向键</b> 移动蓝色方块到达红色终点</p>
+        <div id="win" class="win-msg">恭喜！你成功逃脱了！正在重置...</div>
+    </div>
+    <canvas id="mazeCanvas"></canvas>
+
+<script>
+    const canvas = document.getElementById('mazeCanvas');
+    const ctx = canvas.getContext('2d');
+    const winMsg = document.getElementById('win');
+
+    const tileSize = 20; // 每个格子的像素大小
+    const cols = 21;     // 必须是奇数
+    const rows = 21;     // 必须是奇数
+    
+    canvas.width = cols * tileSize;
+    canvas.height = rows * tileSize;
+
+    let maze = [];
+    let player = { x: 1, y: 1 };
+    let end = { x: cols - 2, y: rows - 2 };
+
+    // 1. 初始化全为墙的迷宫 (1是墙, 0是路)
+    function initMaze() {
+        maze = [];
+        for (let y = 0; y < rows; y++) {
+            maze[y] = [];
+            for (let x = 0; x < cols; x++) {
+                maze[y][x] = 1;
+            }
+        }
+    }
+
+    // 2. 递归回溯算法生成迷宫
+    function generateMaze(x, y) {
+        maze[y][x] = 0;
+        const dirs = [
+            [0, -2], [0, 2], [-2, 0], [2, 0]
+        ].sort(() => Math.random() - 0.5); // 随机方向
+
+        for (let [dx, dy] of dirs) {
+            let nx = x + dx, ny = y + dy;
+            if (nx > 0 && nx < cols - 1 && ny > 0 && ny < rows - 1 && maze[ny][nx] === 1) {
+                maze[y + dy / 2][x + dx / 2] = 0; // 打通中间的墙
+                generateMaze(nx, ny);
+            }
+        }
+    }
+
+    // 3. 绘制迷宫
+    function draw() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        
+        for (let y = 0; y < rows; y++) {
+            for (let x = 0; x < cols; x++) {
+                if (maze[y][x] === 1) {
+                    ctx.fillStyle = "#34495e"; // 墙壁
+                    ctx.fillRect(x * tileSize, y * tileSize, tileSize, tileSize);
+                }
+            }
+        }
+
+        // 终点
+        ctx.fillStyle = "#e74c3c";
+        ctx.fillRect(end.x * tileSize + 2, end.y * tileSize + 2, tileSize - 4, tileSize - 4);
+
+        // 玩家
+        ctx.fillStyle = "#3498db";
+        ctx.fillRect(player.x * tileSize + 4, player.y * tileSize + 4, tileSize - 8, tileSize - 8);
+    }
+
+    // 4. 移动逻辑
+    window.addEventListener('keydown', e => {
+        let nx = player.x;
+        let ny = player.y;
+
+        if (e.key === 'ArrowUp') ny--;
+        if (e.key === 'ArrowDown') ny++;
+        if (e.key === 'ArrowLeft') nx--;
+        if (e.key === 'ArrowRight') nx++;
+
+        // 碰撞检查：如果是路(0)则可以移动
+        if (maze[ny] && maze[ny][nx] === 0) {
+            player.x = nx;
+            player.y = ny;
+            draw();
+
+            // 到达终点
+            if (player.x === end.x && player.y === end.y) {
+                winMsg.style.display = 'block';
+                setTimeout(resetGame, 2000);
+            }
+        }
+    });
+
+    function resetGame() {
+        winMsg.style.display = 'none';
+        player = { x: 1, y: 1 };
+        initMaze();
+        generateMaze(1, 1);
+        draw();
+    }
+
+    resetGame();
+</script>
+</body>
+</html>
