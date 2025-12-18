@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>小恐龙游戏</title>
+    <style>
+        body { margin: 0; display: flex; justify-content: center; align-items: center; height: 100vh; background: #eee; }
+        canvas { background: white; border: 1px solid #ccc; box-shadow: 0 0 20px rgba(0,0,0,0.1); }
+    </style>
+</head>
+<body>
+    <canvas id="game"></canvas>
+
+<script>
+    const canvas = document.getElementById('game');
+    const ctx = canvas.getContext('2d');
+
+    // 基础配置
+    canvas.width = 600;
+    canvas.height = 150;
+    
+    let score = 0;
+    let isGameOver = false;
+    let gameSpeed = 5;
+
+    // 恐龙对象
+    const dino = {
+        x: 50, y: 110, w: 30, h: 30,
+        dy: 0,        // 垂直速度
+        jump: -10,    // 跳跃力度
+        gravity: 0.6, // 重力
+        grounded: true
+    };
+
+    // 障碍物管理
+    let obstacles = [];
+    let timer = 0;
+
+    function draw() {
+        if (isGameOver) return;
+
+        // 清空画布
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        // 1. 处理恐龙物理逻辑
+        if (!dino.grounded) {
+            dino.dy += dino.gravity;
+            dino.y += dino.dy;
+        }
+
+        // 触地检测
+        if (dino.y >= 110) {
+            dino.y = 110;
+            dino.dy = 0;
+            dino.grounded = true;
+        }
+
+        // 绘制恐龙
+        ctx.fillStyle = "#555";
+        ctx.fillRect(dino.x, dino.y, dino.w, dino.h);
+
+        // 2. 障碍物逻辑
+        timer++;
+        if (timer % 100 === 0) { // 每100帧生成一个障碍
+            obstacles.push({ x: 600, w: 20, h: 30 + Math.random() * 20 });
+        }
+
+        obstacles.forEach((obs, index) => {
+            obs.x -= gameSpeed;
+            ctx.fillStyle = "green";
+            ctx.fillRect(obs.x, canvas.height - obs.h, obs.w, obs.h);
+
+            // 碰撞检测
+            if (dino.x < obs.x + obs.w && dino.x + dino.w > obs.x && 
+                dino.y + dino.h > canvas.height - obs.h) {
+                isGameOver = true;
+                alert("游戏结束！得分：" + score);
+                location.reload(); // 自动刷新重启
+            }
+
+            // 计分
+            if (obs.x + obs.w < 0) {
+                obstacles.splice(index, 1);
+                score++;
+            }
+        });
+
+        // 3. 绘制分数
+        ctx.fillStyle = "black";
+        ctx.fillText("Score: " + score, 540, 20);
+
+        requestAnimationFrame(draw);
+    }
+
+    // 交互控制
+    window.addEventListener('keydown', (e) => {
+        if (e.code === 'Space' && dino.grounded) {
+            dino.dy = dino.jump;
+            dino.grounded = false;
+        }
+    });
+
+    // 启动游戏
+    draw();
+</script>
+</body>
+</html>
