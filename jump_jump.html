@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>网页版跳一跳</title>
+    <style>
+        body { margin: 0; background: #c5d0d1; display: flex; flex-direction: column; justify-content: center; align-items: center; height: 100vh; font-family: Arial; overflow: hidden; }
+        canvas { background: #d0dbe6; box-shadow: 0 0 40px rgba(0,0,0,0.1); cursor: pointer; }
+        #ui { position: absolute; top: 50px; text-align: center; pointer-events: none; }
+        .score { font-size: 48px; font-weight: bold; color: #555; }
+    </style>
+</head>
+<body>
+    <div id="ui">
+        <div class="score" id="score">0</div>
+        <div style="color: #888;">长按鼠标蓄力，松开跳跃</div>
+    </div>
+    <canvas id="game"></canvas>
+
+<script>
+    const canvas = document.getElementById('game');
+    const ctx = canvas.getContext('2d');
+    const scoreEl = document.getElementById('score');
+
+    canvas.width = 400;
+    canvas.height = 600;
+
+    // 游戏变量
+    let score = 0;
+    let isGameOver = false;
+    let isPressing = false;
+    let pressTime = 0;
+
+    // 平台配置
+    let platforms = [];
+    const platformW = 80;
+    const platformH = 40;
+
+    // 玩家配置
+    const player = {
+        x: 0, y: 0, 
+        targetX: 0, targetY: 0,
+        jumpProgress: 0, 
+        isJumping: false,
+        sourceX: 0, sourceY: 0
+    };
+
+    function init() {
+        score = 0;
+        scoreEl.innerText = score;
+        isGameOver = false;
+        platforms = [
+            { x: 100, y: 450 }, // 初始平台
+            { x: 250, y: 350 }  // 第二个平台
+        ];
+        player.x = platforms[0].x;
+        player.y = platforms[0].y - 20;
+        render();
+    }
+
+    // 绘制伪3D方块
+    function drawCube(x, y, w, h, color) {
+        ctx.fillStyle = color;
+        // 侧面
+        ctx.beginPath();
+        ctx.moveTo(x - w/2, y);
+        ctx.lineTo(x - w/2 + 10, y - 10);
+        ctx.lineTo(x + w/2 + 10, y - 10);
+        ctx.lineTo(x + w/2, y);
+        ctx.fill();
+        // 正面
+        ctx.fillStyle = shadeColor(color, -20);
+        ctx.fillRect(x - w/2, y, w, h);
+    }
+
+    function shadeColor(color, percent) {
+        let num = parseInt(color.slice(1), 16), amt = Math.round(2.55 * percent),
+            R = (num >> 16) + amt, G = (num >> 8 & 0x00FF) + amt, B = (num & 0x0000FF) + amt;
+        return "#" + (0x1000000 + (R<255?R<1?0:R:255)*0x10000 + (G<255?G<1?0:G:255)*0x100 + (B<255?B<1?0:B:255)).toString(16).slice(1);
+    }
+
+    function render() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        // 绘制平台
+        platforms.forEach(p => {
+            drawCube(p.x, p.y, platformW, platformH, "#ffffff");
+        });
+
+        // 蓄力效果
+        if (isPressing && !player.isJumping) {
+            let shrink = Math.min(pressTime / 10, 15);
+            ctx.fillStyle = "rgba(0,0,0,0.1)";
+            ctx.beginPath();
+            ctx.ellipse(player.x, player.y + 10, 20 - shrink/2, 10 - shrink/4, 0, 0, Math.PI*2);
+            ctx.fill();
+        }
+
+        // 绘制玩家
+        ctx.fillStyle = "#34495e";
+        let jumpYOffset = 0;
+        if (player.isJumping) {
+            // 抛物线公式: y = 4 * height * t * (1 - t)
+            jumpYOffset = Math.sin(player.jumpProgress * Math.PI) * 100;
+        }
+        ctx.beginPath();
+        ctx.arc(player.x, player.y - jumpYOffset, 12, 0, Math.PI * 2);
+        ctx.fill();
+
+        if (!isGameOver) requestAnimationFrame(update);
+    }
+
+    function update() {
+        if (isPressing && !player.isJumping) {
+            pressTime += 2;
+        }
+
+        if (player.isJumping) {
+            player.jumpProgress += 0.04;
+            player.x = player.sourceX + (player.targetX - player.sourceX) * player.jumpProgress;
+            player.y = player.sourceY + (player.targetY - player.sourceY) * player.jumpProgress;
+
+            if (player.jumpProgress >= 1) {
+                player.isJumping = false;
+                player.jumpProgress = 0;
+                checkLanding();
+            }
+        }
+        render();
+    }
+
+    function checkLanding() {
+        let target = platforms[platforms.length - 1];
+        let dist = Math.sqrt(Math.pow(player.x - target.x, 2) + Math.pow(player.y - (target.y - 20), 2));
+        
+        if (dist < platformW / 2) {
+            score++;
+            scoreEl.innerText = score;
+            addNewPlatform();
+        } else {
+            isGameOver = true;
+            alert("掉下去了！得分: " + score);
+            init();
+        }
+    }
+
+    function addNewPlatform() {
+        let last = platforms[platforms.length - 1];
+        let nextX = last.x + (Math.random() * 100 + 80);
+        let nextY = last.y - (Math.random() * 80 + 20);
+        
+        // 限制在屏幕内，如果太靠右就整体左移（模拟摄像机跟随）
+        if (nextX > canvas.width - 50) {
+            let shiftX = nextX - 250;
+            platforms.forEach(p => p.x -= shiftX);
+            player.x -= shiftX;
+            nextX -= shiftX;
+        }
+
+        platforms.push({ x: nextX, y: nextY });
+        if (platforms.length > 3) platforms.shift();
+    }
+
+    canvas.onmousedown = () => { if(!player.isJumping) { isPressing = true; pressTime = 0; } };
+    canvas.onmouseup = () => {
+        if (isPressing) {
+            isPressing = false;
+            player.isJumping = true;
+            player.sourceX = player.x;
+            player.sourceY = player.y;
+            // 跳跃距离由蓄力时长决定
+            let distance = pressTime * 1.5;
+            // 简单计算跳向下一个平台的角度
+            let next = platforms[platforms.length - 1];
+            let angle = Math.atan2(next.y - 20 - player.y, next.x - player.x);
+            player.targetX = player.x + Math.cos(angle) * distance;
+            player.targetY = player.y + Math.sin(angle) * distance;
+        }
+    };
+
+    init();
+</script>
+</body>
+</html>
